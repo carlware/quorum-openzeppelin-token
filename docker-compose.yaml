@@ -1,0 +1,116 @@
+version: "3.6"
+
+x-quorum-def:
+  &quorum-def
+  restart: "on-failure"
+  image: quorumengineering/quorum:2.2.4
+  expose:
+    - "21000"
+    - "50400"
+  healthcheck:
+    test: ["CMD", "wget", "--spider", "--proxy", "off", "http://localhost:8545"]
+    interval: 3s
+    timeout: 3s
+    retries: 10
+    start_period: 5s
+  entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      DDIR=/qdata/dd
+      rm -rf $${DDIR}
+      mkdir -p $${DDIR}/keystore
+      mkdir -p $${DDIR}/geth
+      cp /config/nodekey$${NODE_ID} $${DDIR}/geth/nodekey
+      cat /config/permissioned-nodes.json > $${DDIR}/static-nodes.json
+      cp $${DDIR}/static-nodes.json $${DDIR}/permissioned-nodes.json
+      cat $${DDIR}/static-nodes.json
+      GENESIS_FILE="/config/genesis.json"
+      NETWORK_ID=$$(cat $${GENESIS_FILE} | grep chainId | awk -F " " '{print $$2}' | awk -F "," '{print $$1}')
+      geth --datadir $${DDIR} init $${GENESIS_FILE}
+      geth \
+        --datadir $${DDIR} \
+        --permissioned \
+        --nodiscover \
+        --verbosity 6 \
+        --vmdebug \
+        --networkid $${NETWORK_ID} \
+        --rpc \
+        --rpcaddr 0.0.0.0 \
+        --rpcport 8545 \
+        --rpcapi admin,db,eth,debug,miner,net,shh,txpool,personal,web3,quorum,istanbul \
+        --gasprice 0 \
+        --port 21000 \
+        --emitcheckpoints \
+        --istanbul.blockperiod 5 \
+        --mine --minerthreads 1 \
+        --syncmode full
+services:
+  node1:
+    << : *quorum-def
+    hostname: node1
+    ports:
+      - "22000:8545"
+    volumes:
+      - vol1:/qdata
+      - ./config:/config:ro
+    environment:
+      - PRIVATE_CONFIG=ignore
+      - NODE_ID=1
+    networks:
+      quorum-net:
+        ipv4_address: 172.16.239.11
+  node2:
+    << : *quorum-def
+    hostname: node2
+    ports:
+      - "22001:8545"
+    volumes:
+      - vol2:/qdata
+      - ./config:/config:ro
+    environment:
+      - PRIVATE_CONFIG=ignore
+      - NODE_ID=2
+    networks:
+      quorum-net:
+        ipv4_address: 172.16.239.12
+  node3:
+    << : *quorum-def
+    hostname: node3
+    ports:
+      - "22002:8545"
+    volumes:
+      - vol3:/qdata
+      - ./config:/config:ro
+    environment:
+      - PRIVATE_CONFIG=ignore
+      - NODE_ID=3
+    networks:
+      quorum-net:
+        ipv4_address: 172.16.239.13
+  node4:
+    << : *quorum-def
+    hostname: node4
+    ports:
+      - "22003:8545"
+    volumes:
+      - vol4:/qdata
+      - ./config:/config:ro
+    environment:
+      - PRIVATE_CONFIG=ignore
+      - NODE_ID=4
+    networks:
+      quorum-net:
+        ipv4_address: 172.16.239.14
+networks:
+  quorum-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      - subnet: 172.16.239.0/24
+volumes:
+  "vol1":
+  "vol2":
+  "vol3":
+  "vol4":
